@@ -8,8 +8,9 @@
 #include <unistd.h>
 
 #include "../includes/request.h"
+#include "../includes/reply.h"
 
-#define CLIENT_TO_SERVER_FIFO "tmp/client_to_server_fifo"
+#define CLIENT_TO_SERVER_FIFO "../tmp/client_to_server_fifo"
 
 
 char server_to_client_fifo_name[128];
@@ -55,6 +56,22 @@ void make_request(int fd, char** argv, int argc) {
     write(fd, &request, sizeof(Request));
 }
 
+
+void wait_reply() {
+    Reply reply;
+    int server_to_client_fifo = open(server_to_client_fifo_name, O_RDONLY);
+    while(1){
+        while(read(server_to_client_fifo, &reply, sizeof(Reply)) > 0){
+			write(1, reply.message, strlen(reply.message));
+			if(reply.to_unlink){
+                close(server_to_client_fifo);
+                exit(0);
+            }
+        }
+    }
+    close(server_to_client_fifo);
+}
+
 //just for debugging
 void print_request(Request r){
 	printf("pid:%d type:%d argc:%d\n", r.pid, r.type, r.argc);
@@ -78,6 +95,7 @@ int main(int argc, char *argv[])
 			int client_to_server_fifo = open(CLIENT_TO_SERVER_FIFO, O_WRONLY);
             make_request(client_to_server_fifo, argv, argc);
             close(client_to_server_fifo);
+            wait_reply();
 		}
 	}
 	else{
