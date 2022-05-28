@@ -2,7 +2,7 @@
 #define __REPLY__
 
 typedef struct reply {
-    int type;
+    int type;               //0 for normal, 1 for error
     char message[1024];
     int message_arguments;
     int to_unlink;

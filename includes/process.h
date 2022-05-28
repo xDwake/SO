@@ -2,6 +2,7 @@
 #define __PROCESS__
 
 typedef struct process {
+    int process_number;
     int client_pid;
     char input_file[1024];
     char output_file[1024];

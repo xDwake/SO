@@ -37,10 +37,19 @@ int validate_request(char** argv, int argc){
 	return 1;
 }
 
+//just for debugging
+void print_request(Request r){
+	printf("pid:%d type:%d argc:%d\n", r.pid, r.type, r.argc);
+	for(int i=0;i<r.argc;i++){
+		printf("%s\n", r.ops[i]);
+	}
+}
+
 void make_request(int fd, char** argv, int argc) {
     int i;
     Request request;
     request.pid = getpid();
+    char ole[32];
     
     if(strcmp(argv[1], "status")==0)
     	request.type=0;
@@ -51,8 +60,12 @@ void make_request(int fd, char** argv, int argc) {
     		request.type=2;
 
     request.argc = argc - 2;
-    for (i = 2; i < argc; i++)
-    	strcpy(request.ops[i - 2], argv[i]);
+    for (i = 2; i < argc; i++){
+    	strcpy(ole, argv[i]);
+    	strcpy(request.ops[i - 2], ole);
+    	//printf("ops %s\n", request.ops[i-2]);
+    }
+    print_request(request);
     write(fd, &request, sizeof(Request));
 }
 
@@ -63,21 +76,14 @@ void wait_reply() {
     while(1){
         while(read(server_to_client_fifo, &reply, sizeof(Reply)) > 0){
 			write(1, reply.message, strlen(reply.message));
-			if(reply.to_unlink){
+			if(reply.to_unlink==1){
                 close(server_to_client_fifo);
                 exit(0);
             }
+            
         }
     }
-    close(server_to_client_fifo);
-}
-
-//just for debugging
-void print_request(Request r){
-	printf("pid:%d type:%d argc:%d\n", r.pid, r.type, r.argc);
-	for(int i=0;i<r.argc;i++){
-		printf("%s\n", r.ops[i]);
-	}
+    //close(server_to_client_fifo);
 }
 
 int main(int argc, char *argv[])
