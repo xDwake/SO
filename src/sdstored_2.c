@@ -15,7 +15,8 @@
 #define MAX_BUFFER_SIZE 1024
 #define CLIENT_TO_SERVER_FIFO "../tmp/client_to_server_fifo"
 
-
+int flag = 1;
+int inc_request = 1;
 int fd, bytes_read;
 int number_of_transformations = 0;
 int processes_in_queue=0;
@@ -299,6 +300,49 @@ void processing(){
 	}
 }
 
+void send_status(char* message){ // done
+	int pipe_fd[2];
+	if(pipe(pipe_fd) == -1){
+		perror("Error creating pipe.\n");
+	}
+
+	dup2(pipe_fd[1],1);
+	dup2(pipe_fd[0],0);
+	close(pipe_fd[1]);
+	close(pipe_fd[0]);
+
+	for(int i = 0; i < sizeof(process_queue);i++){
+		char processo[128];
+		if(process_queue[i].state == 1){
+			Process p = process_queue[i]; 
+				snprintf(processo,sizeof(processo),"task#%d proc-file %s %s ",p.process_number,p.output_file, p.input_file); // alterar se adicionarmos priorities!!
+				write(1,processo,sizeof(processo));
+				for(int j = 0; j < p.no_of_transformations;i++){
+					write(1,p.transformations[i],sizeof(p.transformations[i]));
+				}
+				
+				write(1,"\n", sizeof(char));
+		}
+	}
+
+	char subtitle[20] = "(running/max)\n";
+
+	for(int i = 0; i < 7;i++){
+		char transformacao [128];
+		Transformation t = list_of_transformation[i];
+		snprintf(transformacao,sizeof(transformacao),"transf %s: %d/%d %s", t.name,t.running,t.max,subtitle);
+		write(1,transformacao,sizeof(transformacao));
+		write(1,"\n", sizeof(char));
+	}
+	
+	
+	read(pipe_fd[0],message,sizeof(message));
+
+}
+
+void sigtermhandler(int signum){ // altera a flag de modo a terminar o programa
+	flag = 0;
+}
 
 void print_request(Request r){
 	printf("pid:%d type:%d argc:%d\n", r.pid, r.type, r.argc);
@@ -345,13 +389,19 @@ int main(int argc, char *argv[])
 	Request request;
 	Reply r;
 
-	while(1){
-
+	signal(sigtermhandler,SIGTERM);
+	
+	alarm(1);
+	while(flag){
+		char status_message[2048];
 
 		fd=open(CLIENT_TO_SERVER_FIFO, O_RDONLY, 0666);
 			
-		while(bytes_read = read(fd, &request, sizeof(Request))>0){
-	
+		while(bytes_read = read(fd, &request, sizeof(Request))>0 && flag){
+
+			request.request_number = inc_request;
+			inc_request++;
+
 			if(request.type==1 && request.argc>2){
 				r.type=0;
 				send_feedback("Pending...\n", request.pid, r);
@@ -367,6 +417,7 @@ int main(int argc, char *argv[])
 					for(int i=2;i<request.argc;i++){
 						strcpy(process.transformations[i-2], request.ops[i]);
 					}
+					process.process_number= request.request_number;
 					process.client_pid=request.pid;
 					process.no_of_transformations=request.argc-2;
 					process.state=0;
@@ -380,7 +431,48 @@ int main(int argc, char *argv[])
 					processing();
 				}
 			}
+			else{
+				send_status(status_message);
+				send_feedback(status_message,request.pid,r);
+			}
 	
+		}
+		if(flag == 0){//se  nao funcionar remover codigo daqui ate linha 474
+			while(process_queue){
+				if(request.type==1 && request.argc>2){
+				r.type=0;
+				send_feedback("Pending...\n", request.pid, r);
+				if(validate_ops(request)==0){
+					r.type=1;
+					send_feedback("Invalid transformations!\n", request.pid, r);
+				}
+				else{
+					Process process;
+	
+					strcpy(process.input_file, request.ops[0]);
+					strcpy(process.output_file, request.ops[1]);
+					for(int i=2;i<request.argc;i++){
+						strcpy(process.transformations[i-2], request.ops[i]);
+					}
+					process.process_number= request.request_number;
+					process.client_pid=request.pid;
+					process.no_of_transformations=request.argc-2;
+					process.state=0;
+					//char transformation_path[128];
+					//strcpy(transformation_path, transformations_location);
+					//strcat(transformation_path, process.transformations[0]);
+					//teste(process, transformation_path);
+					//exec_transformation(process);
+					enqueue(process);
+					//print_list_processes();
+					processing();
+				}
+			}
+			else{
+				send_status(status_message);
+				send_feedback(status_message,request.pid,r);
+			}
+			}
 		}
 		close(fd);
 	}
