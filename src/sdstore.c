@@ -39,7 +39,7 @@ int validate_request(char** argv, int argc){
 
 //just for debugging
 void print_request(Request r){
-	printf("pid:%d type:%d argc:%d\n", r.pid, r.type, r.argc);
+	printf("number:%d, pid:%d type:%d argc:%d\n", r.request_number, r.pid, r.type, r.argc);
 	for(int i=0;i<r.argc;i++){
 		printf("%s\n", r.ops[i]);
 	}
@@ -56,16 +56,11 @@ void make_request(int fd, char** argv, int argc) {
     else if(strcmp(argv[1], "proc-file")==0)
     	request.type=1;
 
-    	else
-    		request.type=2;
-
     request.argc = argc - 2;
     for (i = 2; i < argc; i++){
     	strcpy(ole, argv[i]);
     	strcpy(request.ops[i - 2], ole);
-    	//printf("ops %s\n", request.ops[i-2]);
     }
-    print_request(request);
     write(fd, &request, sizeof(Request));
 }
 
@@ -78,16 +73,25 @@ void wait_reply() {
 			write(1, reply.message, strlen(reply.message));
 			if(reply.to_unlink==1){
                 close(server_to_client_fifo);
+                unlink(server_to_client_fifo_name);
                 exit(0);
             }
             
         }
     }
-    //close(server_to_client_fifo);
+}
+
+void close_handler(int signum) {
+    unlink(server_to_client_fifo_name);
+    exit(0);
 }
 
 int main(int argc, char *argv[])
 {
+
+	signal(SIGINT, close_handler);
+    signal(SIGTERM, close_handler);
+
 	char possible_command1[128];
 	char possible_command2[128];
 
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
 	}
 	else{
         int possible_command1_size = sprintf(possible_command1, "%s status.\n", argv[0]);
-        int possible_command2_size = sprintf(possible_command2, "%s proc-file <priority> input-filename output-filename transformation-id-1 transformation-id-2 ...", argv[0]);
+        int possible_command2_size = sprintf(possible_command2, "%s proc-file input-filename output-filename transformation-id-1 transformation-id-2 ...", argv[0]);
         write(1, possible_command1, possible_command1_size);
         write(1, possible_command2, possible_command2_size);
 	}
