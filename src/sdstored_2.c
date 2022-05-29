@@ -73,9 +73,9 @@ void send_feedback(char *feedback, int client_pid, Reply reply){
     sprintf(server_to_client_fifo_name, "../tmp/%d", client_pid);
     if(reply.type==1 || reply.type==2)
     	reply.to_unlink=1;
-    else
+    else{
     	reply.to_unlink=0;
-	
+	}
 	server_to_client_fifo = open(server_to_client_fifo_name, O_WRONLY);
     
     write(server_to_client_fifo, &reply, sizeof(Reply));
@@ -131,7 +131,7 @@ void dequeue(Process p){
 }
 
 void finish(Process p){
-	int i=0, j;
+	int i=0;
     Reply r;
 
     for(int i=0;i<processes_in_queue;i++){
@@ -196,7 +196,6 @@ void exec_transformation(Process p){
 }
 
 void exec_transformation_pipeline(Process p){
-	int pid;
 	int ret;
 	int status[p.no_of_transformations];
 	int input_file_fd;
@@ -439,7 +438,7 @@ int main(int argc, char *argv[])
 
 		fd=open(CLIENT_TO_SERVER_FIFO, O_RDONLY, 0666);
 			
-		while(bytes_read = read(fd, &request, sizeof(Request))>0){
+		while((bytes_read = read(fd, &request, sizeof(Request)))>0){
 
     		request.request_number=request_counter;
     		request_counter++;
